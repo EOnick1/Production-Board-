@@ -1,0 +1,273 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Everyday Oil — Weekly Bottling</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Mono:wght@400;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#F1ECE0;          /* warm cream paper */
+    --card:#FBFAF4;         /* near-white warm */
+    --line:#D9D2C2;         /* hairline */
+    --ink:#1C1A15;          /* near-black */
+    --ink-dim:#8A8172;      /* warm grey */
+    --track:#E7E1D2;        /* progress track */
+    --sun:#E0A92E;          /* mustard mark */
+    --ok:#4a7c59; --err:#b4593f;
+    --mono:'Space Mono','Courier New',monospace;
+    --disp:'Helvetica Neue',Helvetica,Arial,sans-serif;
+  }
+  *{box-sizing:border-box;margin:0;padding:0}
+  html,body{height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:var(--mono);font-variant-numeric:tabular-nums;
+    padding:clamp(18px,2.4vw,40px);min-height:100vh;-webkit-font-smoothing:antialiased;
+  }
+
+  header{display:flex;align-items:flex-end;justify-content:space-between;gap:24px;flex-wrap:wrap;
+    padding-bottom:16px;border-bottom:1.5px solid var(--ink);margin-bottom:clamp(20px,2.6vw,34px)}
+  .brand{display:flex;align-items:center;gap:16px}
+  .mark{height:clamp(46px,4.6vw,62px);width:auto;display:block}
+  .wordmark .eyebrow{font-size:clamp(11px,1vw,13px);letter-spacing:.34em;color:var(--ink-dim);
+    text-transform:uppercase;margin-bottom:4px}
+  .wordmark h1{font-family:var(--disp);font-weight:800;letter-spacing:-.01em;
+    font-size:clamp(24px,3vw,42px);line-height:.95;text-transform:uppercase}
+  .status-line{display:flex;align-items:center;gap:18px;font-size:clamp(11px,1.1vw,14px);color:var(--ink-dim)}
+  .clock{font-family:var(--disp);font-weight:700;font-size:clamp(22px,2.4vw,34px);color:var(--ink);letter-spacing:.01em}
+  .live{display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.12em}
+  .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(74,124,89,.5);animation:pulse 2.4s infinite}
+  .dot.err{background:var(--err);animation:none}
+  @keyframes pulse{0%{box-shadow:0 0 0 0 rgba(74,124,89,.5)}70%{box-shadow:0 0 0 9px rgba(74,124,89,0)}100%{box-shadow:0 0 0 0 rgba(74,124,89,0)}}
+
+  #board{display:flex;flex-direction:column;gap:clamp(16px,2.2vw,30px)}
+  .group{--c:var(--ink-dim);--ct:transparent;--tc:#fff;border:1.5px solid transparent;border-radius:4px}
+  .group.main{border-color:var(--c);background:var(--ct);
+    padding:clamp(14px,1.6vw,22px);box-shadow:0 6px 22px -14px rgba(0,0,0,.4)}
+  .group-head{display:flex;align-items:center;gap:14px;margin-bottom:14px;flex-wrap:wrap}
+  .swatch{width:clamp(20px,2vw,26px);height:clamp(20px,2vw,26px);border-radius:50%;
+    background:var(--c);border:1.5px solid rgba(0,0,0,.18);flex:none}
+  .gname{font-weight:700;font-size:clamp(15px,1.5vw,20px);text-transform:uppercase;letter-spacing:.06em}
+  .gcode{font-size:clamp(11px,1vw,13px);color:var(--ink-dim);letter-spacing:.1em}
+  .tag-main{background:var(--c);color:var(--tc);font-weight:700;font-size:clamp(10px,.95vw,12px);
+    text-transform:uppercase;letter-spacing:.14em;padding:5px 12px;border-radius:999px}
+  .tag-aux{color:var(--ink-dim);font-weight:700;font-size:clamp(10px,.85vw,12px);
+    text-transform:uppercase;letter-spacing:.16em;border:1.5px solid var(--line);padding:4px 11px;border-radius:999px}
+  .group-stat{margin-left:auto;color:var(--ink-dim);font-size:clamp(11px,1.05vw,14px);letter-spacing:.04em}
+  .group-stat b{color:var(--ink);font-weight:700}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(206px,1fr));gap:clamp(11px,1.3vw,16px)}
+  .card{--c:var(--ink-dim);--ct:transparent;--tc:#fff;background:var(--card);
+    border:1px solid var(--line);border-left:6px solid var(--c);border-radius:4px;
+    padding:clamp(15px,1.5vw,20px);display:flex;flex-direction:column;gap:12px}
+  .card.done{background:var(--ct)}
+  .card-top{display:flex;justify-content:space-between;align-items:flex-start;gap:10px}
+  .sku{font-weight:700;font-size:clamp(16px,1.6vw,21px);letter-spacing:.02em}
+  .size{color:var(--ink-dim);font-size:clamp(11px,1vw,13px);text-transform:uppercase;letter-spacing:.08em;margin-top:4px}
+  .badge{font-size:clamp(10px,.9vw,12px);font-weight:700;text-transform:uppercase;letter-spacing:.08em;
+    padding:5px 10px;border-radius:999px;white-space:nowrap;border:1.5px solid var(--line);color:var(--ink-dim)}
+  .badge.done{background:var(--c);color:var(--tc);border-color:var(--c)}
+  .left{display:flex;align-items:baseline;gap:8px}
+  .left .n{font-family:var(--disp);font-weight:800;font-size:clamp(38px,4.4vw,56px);line-height:.9;letter-spacing:-.02em}
+  .left .u{font-size:clamp(11px,1vw,13px);color:var(--ink-dim);text-transform:uppercase;letter-spacing:.14em}
+  .sub{font-size:clamp(11px,1vw,13px);color:var(--ink-dim);letter-spacing:.03em}
+  .bar{height:8px;background:var(--track);border-radius:999px;overflow:hidden}
+  .bar>span{display:block;height:100%;border-radius:999px;background:var(--c);transition:width .6s ease}
+  .stock{display:flex;justify-content:space-between;align-items:baseline;margin-top:2px;
+    padding-top:10px;border-top:1px solid var(--line)}
+  .stock-l{font-size:clamp(12px,1.2vw,15px);color:var(--ink-dim);text-transform:uppercase;letter-spacing:.1em}
+  .stock-n{font-family:var(--disp);font-weight:800;font-size:clamp(17px,1.7vw,22px)}
+  .stock-n.low{color:#C0402E;animation:lowstock 1.4s ease-in-out infinite}
+  @keyframes lowstock{0%,100%{opacity:1}50%{opacity:.15}}
+
+  .config{margin-top:32px;padding-top:20px;border-top:1.5px solid var(--ink);color:var(--ink-dim);font-size:13px}
+  .config label{font-weight:700;color:var(--ink);text-transform:uppercase;letter-spacing:.12em;font-size:12px}
+  .config .row{display:flex;gap:10px;flex-wrap:wrap;margin-top:12px;align-items:center}
+  .config input{flex:1;min-width:280px;background:var(--card);border:1.5px solid var(--line);
+    color:var(--ink);border-radius:4px;padding:13px 14px;font-size:13px;font-family:var(--mono)}
+  .config input:focus{outline:none;border-color:var(--ink)}
+  .config button{background:var(--ink);color:var(--bg);border:0;border-radius:4px;padding:13px 26px;
+    font-weight:700;font-size:13px;cursor:pointer;font-family:var(--mono);text-transform:uppercase;letter-spacing:.12em}
+  .config button:hover{opacity:.88}
+  .hint{margin-top:14px;line-height:1.7;max-width:80ch}
+  .hint code{background:var(--card);border:1px solid var(--line);padding:1px 6px;border-radius:3px;color:var(--ink);font-size:12px}
+  .msg{margin-top:10px;font-weight:700;color:var(--ink)}.msg.err{color:var(--err)}
+  .empty{text-align:center;color:var(--ink-dim);padding:60px;font-size:16px}
+  @media (prefers-reduced-motion:reduce){.dot{animation:none}.bar>span{transition:none}.stock-n.low{animation:none}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <svg class="mark" viewBox="0 0 64 104" xmlns="http://www.w3.org/2000/svg" aria-label="Everyday Oil">
+      <g fill="#804A2B">
+        <rect x="23" y="6" width="18" height="7" rx="2"/>
+        <rect x="26" y="12" width="12" height="8"/>
+        <rect x="11" y="19" width="42" height="80" rx="10"/>
+      </g>
+      <text x="32" y="70" text-anchor="middle" textLength="36" lengthAdjust="spacingAndGlyphs"
+            font-family="Helvetica Neue,Arial,sans-serif" font-weight="800" font-size="34" fill="#F1E7D5">EO</text>
+    </svg>
+    <div class="wordmark">
+      <div class="eyebrow">Everyday Oil</div>
+      <h1>Bottling &middot; This Week</h1>
+    </div>
+  </div>
+  <div class="status-line">
+    <span class="clock" id="clock">--:--</span>
+    <span class="live"><span class="dot" id="dot"></span><span id="updated">loading</span></span>
+  </div>
+</header>
+
+<div class="board" id="board"></div>
+
+<div class="config">
+  <label for="url">Connect the sheet (published CSV link)</label>
+  <div class="row">
+    <input id="url" type="text" placeholder="https://docs.google.com/spreadsheets/d/e/…/pub?gid=0&single=true&output=csv">
+    <button id="connect">Connect</button>
+  </div>
+  <div class="msg" id="msg">Showing sample data — paste a link above to go live.</div>
+  <div class="hint">
+    Publish the <strong>This Week</strong> tab as CSV and paste the link.
+    Headers: <code>SKU</code> · <code>Size</code> · <code>Weekly Target</code> · <code>Bottled</code> · <code>Main Line</code>.
+    Put an <code>x</code> in Main Line for the blend you're running yourself — its section gets framed and the rest show as Aux. Add an <code>Inventory</code> column to show current on-hand stock per SKU.
+    Refreshes every 30 seconds.
+  </div>
+</div>
+
+<script>
+  const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vR8lE_0QthNfShDRn0V_WSkg0GyYzsU7HxCqf7qvomwZVA8StrsamldS9NpomYtNKJxEvsZa1J4e2xn/pub?gid=1633665549&single=true&output=csv";     // set once for the floor PC to auto-load
+  const REFRESH_MS = 30000;
+  const LOW_STOCK = 500;        // On-hand below this pulses red
+
+  // blend code -> scent name, brand color, tint, and readable text color on that color
+  const BLENDS = {
+    MS:{name:"Mainstay",      c:"#DDA524", ct:"rgba(221,165,36,.13)",  tc:"#1C1A15"},
+    WF:{name:"Warm Feelings", c:"#BE6A45", ct:"rgba(190,106,69,.12)",  tc:"#FBFAF4"},
+    EM:{name:"Early Morning", c:"#6E8AA6", ct:"rgba(110,138,166,.13)", tc:"#FBFAF4"},
+    BL:{name:"Baseline",      c:"#9B9384", ct:"rgba(155,147,132,.15)", tc:"#1C1A15"},
+  };
+  const DEF={name:"Other", c:"#8A8172", ct:"rgba(138,129,114,.14)", tc:"#FBFAF4"};
+  const blendKey=s=>(s||"").trim().slice(0,2).toUpperCase();
+  const MAINY=new Set(["x","main","yes","true","✓","1","y"]);
+  const isMain=r=>MAINY.has(((r["Main Line"]||r["Main"]||r.Line||"")+"").trim().toLowerCase());
+
+  const SAMPLE = [
+    {SKU:"MS08",   Size:"8 oz",  "Weekly Target":"480", Bottled:"300", "Main Line":"x", Inventory:"210"},
+    {SKU:"MS02",   Size:"2 oz",  "Weekly Target":"960", Bottled:"210", "Main Line":"x", Inventory:"1440"},
+    {SKU:"MSMINI", Size:"Mini",  "Weekly Target":"600", Bottled:"600", "Main Line":"x", Inventory:"305"},
+    {SKU:"BL08",   Size:"8 oz",  "Weekly Target":"480", Bottled:"120", Inventory:"90"},
+    {SKU:"BL02",   Size:"2 oz",  "Weekly Target":"960", Bottled:"0", Inventory:"640"},
+    {SKU:"BLMINI", Size:"Mini",  "Weekly Target":"600", Bottled:"450", Inventory:"120"},
+    {SKU:"WF08",   Size:"8 oz",  "Weekly Target":"480", Bottled:"480", Inventory:"260"},
+    {SKU:"WF02",   Size:"2 oz",  "Weekly Target":"960", Bottled:"540", Inventory:"880"},
+    {SKU:"WFMINI", Size:"Mini",  "Weekly Target":"600", Bottled:"200", Inventory:"415"},
+    {SKU:"EM08",   Size:"8 oz",  "Weekly Target":"480", Bottled:"90", Inventory:"75"},
+    {SKU:"EM02",   Size:"2 oz",  "Weekly Target":"960", Bottled:"780", Inventory:"1210"},
+    {SKU:"EMMINI", Size:"Mini",  "Weekly Target":"600", Bottled:"0", Inventory:"330"},
+    {SKU:"MS08 REFILL", Size:"8 oz refill", "Weekly Target":"240", Bottled:"60", "Main Line":"x", Inventory:"40"},
+    {SKU:"BL08 REFILL", Size:"8 oz refill", "Weekly Target":"240", Bottled:"240", Inventory:"150"},
+    {SKU:"WF08 REFILL", Size:"8 oz refill", "Weekly Target":"240", Bottled:"100", Inventory:"85"},
+    {SKU:"EM08 REFILL", Size:"8 oz refill", "Weekly Target":"240", Bottled:"0", Inventory:"200"},
+  ];
+
+  const board=document.getElementById("board"),
+        msg=document.getElementById("msg"),
+        dot=document.getElementById("dot"),
+        updated=document.getElementById("updated");
+  let liveUrl=SHEET_CSV_URL;
+  const num=v=>parseFloat((v||"").toString().replace(/,/g,""))||0;
+  const esc=s=>(s??"").toString().replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
+
+  function render(rows){
+    rows=rows.filter(r=>((r.SKU||r.Blend)||"").trim()!=="");
+    if(!rows.length){board.innerHTML='<div class="empty">No SKUs found. Check the sheet has data and the right headers.</div>';return;}
+
+    const groups=new Map();
+    rows.forEach(r=>{const k=blendKey(r.SKU||r.Blend);if(!groups.has(k))groups.set(k,[]);groups.get(k).push(r);});
+    const anyMain=rows.some(isMain);
+
+    let html="";
+    for(const [key,items] of groups){
+      const b=BLENDS[key]||DEF, groupMain=items.some(isMain);
+      let gTarget=0,gBottled=0,gDone=0;
+      const cards=items.map(r=>{
+        const target=num(r["Weekly Target"]||r.Target),
+              bottled=num(r.Bottled||r.Filled),
+              remaining=Math.max(0,target-bottled),
+              pct=target?Math.min(100,Math.round(bottled/target*100)):0,
+              done=(remaining===0&&target>0);
+        const invRaw=(r.Inventory??r["On Hand"]??r.Stock??"").toString().trim();
+        const invNum=num(invRaw);
+        const low=invRaw!==""&&invNum<LOW_STOCK;
+        const invHtml=invRaw!==""
+          ? `<div class="stock"><span class="stock-l">On hand</span><span class="stock-n${low?" low":""}">${invNum.toLocaleString()}</span></div>`
+          : "";
+        gTarget+=target;gBottled+=bottled;if(done)gDone++;
+        const badge=done?'<div class="badge done">✓ Done</div>'
+                    :(bottled>0?`<div class="badge">${pct}%</div>`:'<div class="badge">—</div>');
+        return `<div class="card${done?' done':''}" style="--c:${b.c};--ct:${b.ct};--tc:${b.tc}">
+          <div class="card-top">
+            <div><div class="sku">${esc(r.SKU||r.Blend)}</div><div class="size">${esc(r.Size)||""}</div></div>
+            ${badge}
+          </div>
+          <div class="left"><span class="n">${remaining.toLocaleString()}</span><span class="u">left</span></div>
+          <div class="sub">${bottled.toLocaleString()} of ${target.toLocaleString()} bottled</div>
+          <div class="bar"><span style="width:${pct}%"></span></div>
+          ${invHtml}
+        </div>`;
+      }).join("");
+      const gRemain=Math.max(0,gTarget-gBottled);
+      const tag = groupMain ? '<span class="tag-main">◉ Main line</span>'
+                : (anyMain ? '<span class="tag-aux">Aux</span>' : '');
+      html+=`<div class="group${groupMain?' main':''}" style="--c:${b.c};--ct:${b.ct};--tc:${b.tc}">
+        <div class="group-head">
+          <span class="swatch"></span>
+          <span class="gname">${esc(b.name)}</span>
+          <span class="gcode">${esc(key)}</span>
+          ${tag}
+          <span class="group-stat"><b>${gRemain.toLocaleString()}</b> left &middot; ${gDone}/${items.length} done</span>
+        </div>
+        <div class="grid">${cards}</div>
+      </div>`;
+    }
+    board.innerHTML=html;
+  }
+
+  function parseCSV(t){
+    const rows=[];let row=[],cur="",q=false;
+    for(let i=0;i<t.length;i++){const ch=t[i];
+      if(q){if(ch==='"'){if(t[i+1]==='"'){cur+='"';i++}else q=false}else cur+=ch}
+      else{if(ch==='"')q=true;else if(ch===","){row.push(cur);cur=""}
+        else if(ch==="\n"){row.push(cur);rows.push(row);row=[];cur=""}else if(ch!=="\r")cur+=ch}}
+    if(cur.length||row.length){row.push(cur);rows.push(row)}
+    const head=rows.shift().map(h=>h.trim());
+    return rows.map(r=>{const o={};head.forEach((h,i)=>o[h]=(r[i]||"").trim());return o});
+  }
+
+  async function load(){
+    if(!liveUrl){render(SAMPLE);mark(true,"Sample");return;}
+    try{
+      const res=await fetch(liveUrl+(liveUrl.includes("?")?"&":"?")+"t="+Date.now());
+      if(!res.ok)throw new Error("HTTP "+res.status);
+      render(parseCSV(await res.text()));mark(true,"Live");
+    }catch(e){mark(false,"Offline");msg.className="msg err";
+      msg.textContent="Couldn't load the sheet. Make sure it's Published to web as CSV. "+e.message;}
+  }
+  function mark(ok,label){dot.className=ok?"dot":"dot err";
+    updated.textContent=(label?label+" · ":"")+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
+
+  document.getElementById("connect").addEventListener("click",()=>{
+    liveUrl=document.getElementById("url").value.trim();
+    msg.className="msg";msg.textContent=liveUrl?"Connecting…":"Cleared — showing sample data.";load();});
+  const tick=()=>document.getElementById("clock").textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
+  tick();setInterval(tick,1000);
+  document.getElementById("url").value=SHEET_CSV_URL;load();setInterval(load,REFRESH_MS);
+</script>
+</body>
+</html>
