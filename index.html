@@ -78,6 +78,14 @@
   .makeline{font-size:clamp(12px,1.05vw,14px);color:var(--ink-dim);letter-spacing:.02em}
   .makeline b{color:var(--ink);font-weight:700}
   .makeline.dim{opacity:.7}
+  .mnote{color:var(--ink-dim);font-weight:400;font-size:.85em}
+  .snrow{display:flex;align-items:baseline;gap:6px}
+  .cool{font-size:.5em;line-height:1}
+  .group.onmain{border:2px solid var(--c);border-radius:12px;padding:clamp(12px,1.5vw,18px);box-shadow:0 0 26px -12px var(--c)}
+  .nowpill{background:var(--ink);color:var(--bg);font-weight:800;font-size:clamp(10px,1vw,13px);
+    text-transform:uppercase;letter-spacing:.1em;padding:6px 13px;border-radius:999px}
+  .eng{font-size:clamp(10px,.9vw,12px);color:var(--ink-dim);border:1.5px solid var(--line);
+    border-radius:999px;padding:4px 11px;text-transform:uppercase;letter-spacing:.09em;font-weight:700}
 
   /* full board */
   #board{display:flex;flex-direction:column;gap:clamp(16px,2.2vw,28px)}
@@ -140,8 +148,8 @@
   </div>
   <div class="msg" id="msg">Showing sample data — paste a link above to go live.</div>
   <div class="hint">
-    Reads the <strong>Today</strong> tab. The top strip shows only what needs bottling (LOW cover) with its line and make-qty.
-    Below is every SKU, grouped by blend. Refreshes every 30 seconds.
+    Reads the <strong>Today</strong> tab. The top strip is the AUX to-do list: low SKUs whose blend isn't on the main line get filled on AUX at a day's demand.
+    Mark the blend currently on the main line with an <code>x</code> in a <code>Main Now</code> column. Refreshes every 30 seconds.
   </div>
 </div>
 
@@ -158,6 +166,7 @@
     CA:{c:"#2F6E3E", names:["camp"]},
   };
   const DEF={c:"#8A8172", names:[]};
+  const MAINY=new Set(["x","yes","true","1","y","✓"]);
   function blend(v,sku){
     const s=(v||"").trim().toLowerCase(), key=(v||"").trim().slice(0,2).toUpperCase();
     if(BLENDS[key]) return {code:key,...BLENDS[key]};
@@ -168,14 +177,14 @@
   }
 
   const SAMPLE=[
-    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Flag":"LOW"},
-    {SKU:"MS02",Blend:"Mainstay","On-hand":"976","Size":"2 oz","Days cover":"11.3","Suggested run":"834","Suggested line":"MAIN","Blend need":"2982","Flag":""},
-    {SKU:"MSMINI",Blend:"Mainstay","On-hand":"259","Size":"Mini","Days cover":"14.4","Suggested run":"119","Suggested line":"MAIN","Blend need":"2982","Flag":""},
-    {SKU:"EM02",Blend:"Early Morning","On-hand":"0","Size":"2 oz","Days cover":"0","Suggested run":"315","Suggested line":"AUX","Blend need":"493","Flag":"LOW"},
-    {SKU:"EM08",Blend:"Early Morning","On-hand":"81","Size":"8 oz","Days cover":"9.6","Suggested run":"95","Suggested line":"AUX","Blend need":"493","Flag":""},
-    {SKU:"MS08 REFILL",Blend:"Mainstay","On-hand":"0","Size":"8 oz refill","Days cover":"0","Suggested run":"626","Suggested line":"MAIN","Blend need":"2982","Flag":"LOW"},
-    {SKU:"WF08",Blend:"Warm Feelings","On-hand":"1234","Size":"8 oz","Days cover":"89.4","Suggested run":"0","Suggested line":"AUX","Blend need":"125","Flag":""},
-    {SKU:"BL08",Blend:"Baseline","On-hand":"77","Size":"8 oz","Days cover":"11.7","Suggested run":"62","Suggested line":"AUX","Blend need":"243","Flag":""},
+    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Daily demand":"78","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW"},
+    {SKU:"MS02",Blend:"Mainstay","On-hand":"976","Size":"2 oz","Days cover":"11.3","Daily demand":"86","Suggested run":"834","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
+    {SKU:"MSMINI",Blend:"Mainstay","On-hand":"259","Size":"Mini","Days cover":"14.4","Daily demand":"18","Suggested run":"119","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
+    {SKU:"EM02",Blend:"Early Morning","On-hand":"0","Size":"2 oz","Days cover":"0","Daily demand":"24","Suggested run":"315","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":"LOW"},
+    {SKU:"EM08",Blend:"Early Morning","On-hand":"81","Size":"8 oz","Days cover":"9.6","Daily demand":"8","Suggested run":"95","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":""},
+    {SKU:"MS08 REFILL",Blend:"Mainstay","On-hand":"0","Size":"8 oz refill","Days cover":"0","Daily demand":"12","Suggested run":"626","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW"},
+    {SKU:"WF08",Blend:"Warm Feelings","On-hand":"1234","Size":"8 oz","Days cover":"89.4","Daily demand":"14","Suggested run":"0","Suggested line":"AUX","Blend need":"125","Main Now":"x","Flag":""},
+    {SKU:"BL08",Blend:"Baseline","On-hand":"77","Size":"8 oz","Days cover":"11.7","Daily demand":"7","Suggested run":"62","Suggested line":"AUX","Blend need":"243","Main Now":"","Flag":""},
   ];
 
   const board=document.getElementById("board"),
@@ -190,21 +199,26 @@
   const title=s=>s?s.replace(/\b\w/g,c=>c.toUpperCase()):s;
 
   function card(p,big){
+    const cool=p.has&&p.cover>60;
     const cd=p.has?(p.cover>=10?Math.round(p.cover):p.cover.toFixed(1)):"—";
     const w=p.has?Math.max(3,Math.min(100,p.cover/RUNWAY_FULL*100)):100;
-    const topRight = big
-      ? (p.line==="MAIN"?'<span class="line-pill main">◆ Main line</span>'
-         :p.line==="AUX"?'<span class="line-pill aux">Aux</span>':'')
-      : (p.run>0?`<span class="runtag">Make ${p.run.toLocaleString()}</span>`:'');
-    const make = p.run>0 ? `<div class="makeline">Make <b>${p.run.toLocaleString()}</b></div>`
-                         : `<div class="makeline dim">caught up</div>`;
+    let topRight="", make="";
+    if(big){
+      topRight = p.attnLine==="MAIN"
+        ? '<span class="line-pill main">◆ Main line</span>'
+        : '<span class="line-pill aux">▲ Aux machine</span>';
+      const note = p.attnLine==="AUX" ? ' <span class="mnote">(a day&rsquo;s worth)</span>' : '';
+      make = `<div class="makeline">Make <b>${(p.attnMake||0).toLocaleString()}</b>${note}</div>`;
+    } else {
+      topRight = p.run>0?`<span class="runtag">Make ${p.run.toLocaleString()}</span>`:'';
+    }
     return `<div class="card${p.low?' low':''}${big?' big':''}" style="--c:${p.b.c}">
       <div class="card-top">
         <div><div class="sku">${esc(p.sku)}</div><div class="size">${esc(p.size)}</div></div>
         ${topRight}
       </div>
       <div class="stats">
-        <div class="stat"><span class="sn cov">${cd}</span><span class="sl">days cover</span></div>
+        <div class="stat"><span class="snrow"><span class="sn cov">${cd}</span>${cool?'<span class="cool">😎</span>':''}</span><span class="sl">days cover</span></div>
         <div class="stat"><span class="sn">${p.onhand.toLocaleString()}</span><span class="sl">on hand</span></div>
       </div>
       <div class="bar"><span style="width:${w}%"></span></div>
@@ -224,8 +238,12 @@
       return {raw:r,sku,b,size:field(r,["size"]).trim(),cover,has,
         low:flag.includes("low")||(has&&cover<5),
         onhand:num(field(r,["on-hand","on hand","onhand","inventory","stock"])),
-        run:num(field(r,["suggested run","run","make"]))};
+        run:num(field(r,["suggested run","run","make"])),
+        daily:num(field(r,["daily demand","daily"])),
+        mainNow:MAINY.has(field(r,["main now","on main","main line","current main"]).trim().toLowerCase())};
     });
+
+    const blendsOnMain=new Set(items.filter(i=>i.mainNow).map(i=>i.b.code));
 
     // group by blend, attach blend-level line + need
     const gmap=new Map();
@@ -237,11 +255,18 @@
       const covers=its.filter(i=>i.has).map(i=>i.cover);
       const minCover=covers.length?Math.min(...covers):Infinity;
       its.sort((a,b)=>(a.has?a.cover:Infinity)-(b.has?b.cover:Infinity));
-      return {b:its[0].b,its,line,need,minCover,lowCount:its.filter(i=>i.low).length};
+      return {b:its[0].b,its,line,need,minCover,lowCount:its.filter(i=>i.low).length,
+              onMain:blendsOnMain.has(its[0].b.code)};
     }).sort((x,y)=>x.minCover-y.minCover);
 
-    // BOTTLE NOW strip
+    // BOTTLE NOW strip (for AUX operators): if the low SKU's blend isn't the one
+    // currently on the main line, it gets filled on AUX at a day's demand.
     const attention=items.filter(i=>i.low).sort((a,b)=>(a.has?a.cover:Infinity)-(b.has?b.cover:Infinity));
+    attention.forEach(p=>{
+      const onMain=blendsOnMain.has(p.b.code);
+      p.attnLine=onMain?"MAIN":"AUX";
+      p.attnMake=onMain?Math.round(p.run):Math.round(p.daily);
+    });
     if(attention.length){
       attn.innerHTML=`<div class="section-label alert"><span class="t">Bottle now</span><span class="c">${attention.length} need${attention.length===1?'s':''} attention</span></div>
         <div class="attn-row">${attention.map(p=>card(p,true)).join("")}</div>`;
@@ -253,15 +278,17 @@
     board.innerHTML=`<div class="section-label"><span class="t">All SKUs</span><span class="c">by blend</span></div>`+
       groups.map(g=>{
         const cards=g.its.map(p=>card(p,false)).join("");
-        const linePill=g.line==="MAIN"?'<span class="line-pill main">◆ Main line</span>'
-                      :g.line==="AUX"?'<span class="line-pill aux">Aux</span>':'';
+        const eng=g.line==="MAIN"?'<span class="eng">Suggested: Main</span>'
+                 :g.line==="AUX"?'<span class="eng">Suggested: Aux</span>':'';
+        const nowBadge=g.onMain?'<span class="nowpill">● On main line</span>':'';
         const lowTxt=g.lowCount>0?`<span class="lowc">${g.lowCount} low</span> · `:'';
-        return `<div class="group" style="--c:${g.b.c}">
+        return `<div class="group${g.onMain?' onmain':''}" style="--c:${g.b.c}">
           <div class="group-head">
             <span class="swatch"></span>
             <span class="gname">${esc(title(g.b.names[0])||g.b.code)}</span>
             <span class="gcode">${esc(g.b.code)}</span>
-            ${linePill}
+            ${nowBadge}
+            ${eng}
             <span class="group-stat">${lowTxt}make <b>${g.need.toLocaleString()}</b></span>
           </div>
           <div class="grid">${cards}</div>
