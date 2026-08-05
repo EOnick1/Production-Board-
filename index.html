@@ -157,6 +157,15 @@
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQHR6Kaiba048tySGcOakPz41DfAFsT6avM9D28UMiwLzEDE8OsPiZ4aRWPGmoyJ0iyWYlShiCirswu/pub?gid=506239971&single=true&output=csv";
   const REFRESH_MS = 30000;
   const RUNWAY_FULL = 21;
+  // Fallback AUX minimums (used only if the sheet has no "AUX floor" column).
+  const AUX_MIN_8OZ = 72, AUX_MIN_2OZ = 138, AUX_MIN_MINI = 138;
+  function auxFloor(size){
+    const s=(size||"").toLowerCase();
+    if(s.includes("mini")) return AUX_MIN_MINI;
+    if(s.includes("2"))    return AUX_MIN_2OZ;   // 2 oz
+    if(s.includes("8"))    return AUX_MIN_8OZ;   // 8 oz + 8 oz refill
+    return 0;
+  }
 
   const BLENDS={
     MS:{c:"#DDA524", names:["mainstay"]},
@@ -207,7 +216,7 @@
       topRight = p.attnLine==="MAIN"
         ? '<span class="line-pill main">◆ Main line</span>'
         : '<span class="line-pill aux">▲ Aux machine</span>';
-      const note = p.attnLine==="AUX" ? ' <span class="mnote">(a day&rsquo;s worth)</span>' : '';
+      const note = p.attnLine==="AUX" ? ` <span class="mnote">(${p.attnNote})</span>` : '';
       make = `<div class="makeline">Make <b>${(p.attnMake||0).toLocaleString()}</b>${note}</div>`;
     } else {
       topRight = p.run>0?`<span class="runtag">Make ${p.run.toLocaleString()}</span>`:'';
@@ -240,6 +249,7 @@
         onhand:num(field(r,["on-hand","on hand","onhand","inventory","stock"])),
         run:num(field(r,["suggested run","run","make"])),
         daily:num(field(r,["daily demand","daily"])),
+        auxfloor:num(field(r,["aux floor","aux min","min aux batch","aux minimum"])),
         mainNow:MAINY.has(field(r,["main now","on main","main line","current main"]).trim().toLowerCase())};
     });
 
@@ -265,7 +275,13 @@
     attention.forEach(p=>{
       const onMain=blendsOnMain.has(p.b.code);
       p.attnLine=onMain?"MAIN":"AUX";
-      p.attnMake=onMain?Math.round(p.run):Math.round(p.daily);
+      if(onMain){
+        p.attnMake=Math.round(p.run); p.attnNote="";
+      } else {
+        const dailyR=Math.round(p.daily), floor=p.auxfloor>0?p.auxfloor:auxFloor(p.size);
+        p.attnMake=Math.max(floor,dailyR);
+        p.attnNote=dailyR>=floor?"a day&rsquo;s worth":"min AUX batch";
+      }
     });
     if(attention.length){
       attn.innerHTML=`<div class="section-label alert"><span class="t">Bottle now</span><span class="c">${attention.length} need${attention.length===1?'s':''} attention</span></div>
