@@ -78,14 +78,6 @@
   .makeline{font-size:clamp(12px,1.05vw,14px);color:var(--ink-dim);letter-spacing:.02em}
   .makeline b{color:var(--ink);font-weight:700}
   .makeline.dim{opacity:.7}
-  .claim{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:2px;padding-top:11px;border-top:1px solid var(--line)}
-  .claimsel{font-family:var(--mono);font-size:clamp(12px,1.15vw,15px);font-weight:700;color:var(--ink);
-    background:var(--bg);border:1.5px solid var(--line);border-radius:6px;padding:9px 12px;cursor:pointer;max-width:100%}
-  .claimsel:focus{outline:none;border-color:var(--ink)}
-  .who{display:inline-flex;align-items:center;gap:6px;background:var(--ink);color:var(--bg);
-    font-weight:700;font-size:clamp(11px,1.1vw,14px);text-transform:uppercase;letter-spacing:.06em;
-    padding:6px 12px;border-radius:999px;white-space:nowrap}
-  .card.claimed{background:#F6F2E6}
   .mnote{color:var(--ink-dim);font-weight:400;font-size:.85em}
   .snrow{display:flex;align-items:baseline;gap:6px}
   .cool{font-size:.5em;line-height:1}
@@ -157,15 +149,13 @@
   <div class="msg" id="msg">Showing sample data — paste a link above to go live.</div>
   <div class="hint">
     Reads the <strong>Today</strong> tab. The top strip is the AUX to-do list: low SKUs whose blend isn't on the main line get filled on AUX at a day's demand.
-    Mark the blend currently on the main line with an <code>x</code> in a <code>Main Now</code> column. Add a <code>Names</code> column (bottler names) to fill the dropdowns. Refreshes every 30 seconds.
+    Mark the blend currently on the main line with an <code>x</code> in a <code>Main Now</code> column. Refreshes every 30 seconds.
   </div>
 </div>
 
 <script>
   const SHEET_CSV_URL = "https://docs.google.com/spreadsheets/d/e/2PACX-1vQHR6Kaiba048tySGcOakPz41DfAFsT6avM9D28UMiwLzEDE8OsPiZ4aRWPGmoyJ0iyWYlShiCirswu/pub?gid=506239971&single=true&output=csv";
   const REFRESH_MS = 30000;
-  // Paste your Apps Script web-app /exec URL here to enable name claiming:
-  const CLAIM_URL = ""; // e.g. "https://script.google.com/macros/s/AKfy.../exec"
   const RUNWAY_FULL = 21;
   // Fallback AUX minimums (used only if the sheet has no "AUX floor" column).
   const AUX_MIN_8OZ = 72, AUX_MIN_2OZ = 138, AUX_MIN_MINI = 138;
@@ -196,12 +186,12 @@
   }
 
   const SAMPLE=[
-    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Daily demand":"78","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW","Names":"Nick","Working":""},
-    {SKU:"MS02",Blend:"Mainstay","On-hand":"976","Size":"2 oz","Days cover":"11.3","Daily demand":"86","Suggested run":"834","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"","Names":"Maria","Working":""},
+    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Daily demand":"78","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW"},
+    {SKU:"MS02",Blend:"Mainstay","On-hand":"976","Size":"2 oz","Days cover":"11.3","Daily demand":"86","Suggested run":"834","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
     {SKU:"MSMINI",Blend:"Mainstay","On-hand":"259","Size":"Mini","Days cover":"14.4","Daily demand":"18","Suggested run":"119","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
-    {SKU:"EM02",Blend:"Early Morning","On-hand":"0","Size":"2 oz","Days cover":"0","Daily demand":"24","Suggested run":"315","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":"LOW","Names":"Sam","Working":"Sam"},
+    {SKU:"EM02",Blend:"Early Morning","On-hand":"0","Size":"2 oz","Days cover":"0","Daily demand":"24","Suggested run":"315","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":"LOW"},
     {SKU:"EM08",Blend:"Early Morning","On-hand":"81","Size":"8 oz","Days cover":"9.6","Daily demand":"8","Suggested run":"95","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":""},
-    {SKU:"MS08 REFILL",Blend:"Mainstay","On-hand":"0","Size":"8 oz refill","Days cover":"0","Daily demand":"12","Suggested run":"626","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW","Names":"Diego","Working":""},
+    {SKU:"MS08 REFILL",Blend:"Mainstay","On-hand":"0","Size":"8 oz refill","Days cover":"0","Daily demand":"12","Suggested run":"626","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW"},
     {SKU:"WF08",Blend:"Warm Feelings","On-hand":"1234","Size":"8 oz","Days cover":"89.4","Daily demand":"14","Suggested run":"0","Suggested line":"AUX","Blend need":"125","Main Now":"x","Flag":""},
     {SKU:"BL08",Blend:"Baseline","On-hand":"77","Size":"8 oz","Days cover":"11.7","Daily demand":"7","Suggested run":"62","Suggested line":"AUX","Blend need":"243","Main Now":"","Flag":""},
   ];
@@ -212,9 +202,6 @@
         dot=document.getElementById("dot"),
         updated=document.getElementById("updated");
   let liveUrl=SHEET_CSV_URL;
-  let names=[];              // dropdown options, from the sheet's Names column
-  const pending={};          // optimistic sku -> just-picked name
-  let interacting=false;     // true while a dropdown is open, to pause refresh
   const num=v=>parseFloat((v||"").toString().replace(/,/g,""))||0;
   const esc=s=>(s??"").toString().replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
   const field=(r,names)=>{for(const k in r){if(names.includes(k.trim().toLowerCase()))return (r[k]??"").toString();}return "";};
@@ -224,26 +211,17 @@
     const cool=p.has&&p.cover>60;
     const cd=p.has?(p.cover>=10?Math.round(p.cover):p.cover.toFixed(1)):"—";
     const w=p.has?Math.max(3,Math.min(100,p.cover/RUNWAY_FULL*100)):100;
-    let topRight="", make="", claim="";
+    let topRight="", make="";
     if(big){
       topRight = p.attnLine==="MAIN"
         ? '<span class="line-pill main">◆ Main line</span>'
         : '<span class="line-pill aux">▲ Aux machine</span>';
       const note = p.attnLine==="AUX" ? ` <span class="mnote">(${p.attnNote})</span>` : '';
       make = `<div class="makeline">Make <b>${(p.attnMake||0).toLocaleString()}</b>${note}</div>`;
-      if(names.length){
-        const who = pending[p.sku] || p.working || "";
-        const opts = ['<option value="">— start work —</option>']
-          .concat(names.map(n=>`<option${n===who?' selected':''}>${esc(n)}</option>`)).join('');
-        claim = `<div class="claim">
-          <select class="claimsel" data-sku="${esc(p.sku)}">${opts}</select>
-          ${who?`<span class="who">▶ ${esc(who)}</span>`:''}
-        </div>`;
-      }
     } else {
       topRight = p.run>0?`<span class="runtag">Make ${p.run.toLocaleString()}</span>`:'';
     }
-    return `<div class="card${p.low?' low':''}${big?' big':''}${big&&(pending[p.sku]||p.working)?' claimed':''}" style="--c:${p.b.c}">
+    return `<div class="card${p.low?' low':''}${big?' big':''}" style="--c:${p.b.c}">
       <div class="card-top">
         <div><div class="sku">${esc(p.sku)}</div><div class="size">${esc(p.size)}</div></div>
         ${topRight}
@@ -254,13 +232,10 @@
       </div>
       <div class="bar"><span style="width:${w}%"></span></div>
       ${big?make:''}
-      ${claim}
     </div>`;
   }
 
   function render(rows){
-    // names list for the dropdown comes from a "Names" column in the sheet
-    names=[...new Set(rows.map(r=>field(r,["names","name","bottler","bottlers"]).trim()).filter(Boolean))];
     rows=rows.filter(r=>field(r,["sku"]).trim()!=="");
     if(!rows.length){attn.innerHTML="";board.innerHTML='<div class="empty">No SKUs found. Check the Today tab is published.</div>';return;}
 
@@ -275,7 +250,6 @@
         run:num(field(r,["suggested run","run","make"])),
         daily:num(field(r,["daily demand","daily"])),
         auxfloor:num(field(r,["aux floor","aux min","min aux batch","aux minimum"])),
-        working:field(r,["working","working on","started by","claimed by"]).trim(),
         mainNow:MAINY.has(field(r,["main now","on main","main line","current main"]).trim().toLowerCase())};
     });
 
@@ -348,7 +322,6 @@
   }
 
   async function load(){
-    if(interacting) return;   // don't yank the board out from under an open dropdown
     if(!liveUrl){render(SAMPLE);mark(true,"Sample");return;}
     try{
       const res=await fetch(liveUrl+(liveUrl.includes("?")?"&":"?")+"t="+Date.now());
@@ -359,34 +332,6 @@
   }
   function mark(ok,label){dot.className=ok?"dot":"dot err";
     updated.textContent=(label?label+" · ":"")+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
-
-  // send a claim to the sheet (fire-and-forget; the Working column reflects it on next refresh)
-  function claim(sku,name){
-    pending[sku]=name;
-    if(CLAIM_URL){
-      try{ fetch(CLAIM_URL,{method:"POST",mode:"no-cors",
-        headers:{"Content-Type":"text/plain;charset=utf-8"},
-        body:JSON.stringify({sku:sku,name:name})}); }catch(e){}
-    }
-  }
-  // dropdown interactions (delegated so they survive re-renders)
-  attn.addEventListener("focusin",e=>{ if(e.target.classList.contains("claimsel")) interacting=true; });
-  attn.addEventListener("focusout",e=>{ if(e.target.classList.contains("claimsel")) interacting=false; });
-  attn.addEventListener("change",e=>{
-    const s=e.target;
-    if(!s.classList.contains("claimsel")) return;
-    const sku=s.getAttribute("data-sku"), name=s.value;
-    interacting=false;
-    claim(sku,name);
-    // optimistic: show the chip immediately
-    const cardEl=s.closest(".card");
-    if(cardEl){
-      cardEl.classList.toggle("claimed",!!name);
-      let chip=cardEl.querySelector(".who");
-      if(name){ if(!chip){chip=document.createElement("span");chip.className="who";s.parentNode.appendChild(chip);} chip.textContent="▶ "+name; }
-      else if(chip){ chip.remove(); }
-    }
-  });
 
   if(SHEET_CSV_URL) document.getElementById("config").style.display="none";
   document.getElementById("connect").addEventListener("click",()=>{
