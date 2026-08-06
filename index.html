@@ -339,7 +339,7 @@
     msg.className="msg";msg.textContent=liveUrl?"Connecting…":"Cleared — showing sample data.";load();});
   const tick=()=>document.getElementById("clock").textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
   tick();setInterval(tick,1000);
-  load();setInterval(load,REFRESH_MS);
+  load();setInterval(load,REFRESH_MS); 
 </script>
 </body>
 </html>
