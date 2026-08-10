@@ -293,8 +293,15 @@
     });
     let onDeck=[];
     if(shownLows.length<3){
-      const pool=items.filter(i=>!i.low).sort((a,b)=>coverKey(a)-coverKey(b));
-      onDeck=pool.slice(0,3-shownLows.length);
+      const need=3-shownLows.length;
+      const notLow=items.filter(i=>!i.low);
+      // on-deck prefers blends NOT currently on the main line, ranked by days cover (lowest first)
+      const offMain=notLow.filter(i=>!blendsOnMain.has(i.b.code)).sort((a,b)=>coverKey(a)-coverKey(b));
+      onDeck=offMain.slice(0,need);
+      if(onDeck.length<need){ // guarantee at least 3: backfill with whatever's left, by days cover
+        const rest=notLow.filter(i=>!onDeck.includes(i)).sort((a,b)=>coverKey(a)-coverKey(b));
+        onDeck=onDeck.concat(rest.slice(0,need-onDeck.length));
+      }
     }
     const topHTML=shownLows.map(p=>card(p,true,false))
                   .concat(onDeck.map(p=>card(p,true,true))).join("");
