@@ -63,6 +63,8 @@
     padding:6px 13px;border-radius:999px;white-space:nowrap}
   .line-pill.main{background:var(--ink);color:var(--bg)}
   .line-pill.aux{border:1.5px solid var(--line);color:var(--ink-dim)}
+  .ondeck{font-size:clamp(10px,1vw,12px);font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+    padding:5px 12px;border-radius:999px;border:1.5px solid var(--line);color:var(--ink-dim)}
 
   /* equal-size stat pair */
   .stats{display:flex;gap:clamp(16px,2.4vw,32px)}
@@ -128,7 +130,7 @@
     </svg>
     <div>
       <div class="eyebrow">Everyday Oil</div>
-      <h1>Today&rsquo;s Production</h1>
+      <h1>Production and Inventory</h1>
     </div>
   </div>
   <div class="status-line">
@@ -207,17 +209,21 @@
   const field=(r,names)=>{for(const k in r){if(names.includes(k.trim().toLowerCase()))return (r[k]??"").toString();}return "";};
   const title=s=>s?s.replace(/\b\w/g,c=>c.toUpperCase()):s;
 
-  function card(p,big){
+  function card(p,big,onDeck){
     const cool=p.has&&p.cover>60;
     const cd=p.has?(p.cover>=10?Math.round(p.cover):p.cover.toFixed(1)):"—";
     const w=p.has?Math.max(3,Math.min(100,p.cover/RUNWAY_FULL*100)):100;
     let topRight="", make="";
     if(big){
-      topRight = p.attnLine==="MAIN"
-        ? '<span class="line-pill main">◆ Main line</span>'
-        : '<span class="line-pill aux">▲ Aux machine</span>';
-      const note = p.attnLine==="AUX" ? ` <span class="mnote">(${p.attnNote})</span>` : '';
-      make = `<div class="makeline">Make <b>${(p.attnMake||0).toLocaleString()}</b>${note}</div>`;
+      if(onDeck){
+        topRight='<span class="ondeck">On deck</span>';
+      } else {
+        topRight = p.attnLine==="MAIN"
+          ? '<span class="line-pill main">◆ Main line</span>'
+          : '<span class="line-pill aux">▲ Aux machine</span>';
+        const note = p.attnLine==="AUX" ? ` <span class="mnote">(${p.attnNote})</span>` : '';
+        make = `<div class="makeline">Make <b>${(p.attnMake||0).toLocaleString()}</b>${note}</div>`;
+      }
     } else {
       topRight = p.run>0?`<span class="runtag">Make ${p.run.toLocaleString()}</span>`:'';
     }
@@ -269,10 +275,12 @@
               onMain:blendsOnMain.has(its[0].b.code)};
     }).sort((x,y)=>x.minCover-y.minCover);
 
-    // BOTTLE NOW strip (for AUX operators): if the low SKU's blend isn't the one
-    // currently on the main line, it gets filled on AUX at a day's demand.
-    const attention=items.filter(i=>i.low).sort((a,b)=>(a.has?a.cover:Infinity)-(b.has?b.cover:Infinity));
-    attention.forEach(p=>{
+    // BOTTLE TODAY strip: show all true lows (up to 6). If fewer than 3, backfill
+    // with the next-lowest-cover SKUs, shown as calm "on deck" cards (no red flash).
+    const coverKey=i=>i.has?i.cover:Infinity;
+    const lows=items.filter(i=>i.low).sort((a,b)=>coverKey(a)-coverKey(b));
+    const shownLows=lows.slice(0,6);
+    shownLows.forEach(p=>{
       const onMain=blendsOnMain.has(p.b.code);
       p.attnLine=onMain?"MAIN":"AUX";
       if(onMain){
@@ -283,12 +291,16 @@
         p.attnNote=dailyR>=floor?"a day&rsquo;s worth":"min AUX batch";
       }
     });
-    if(attention.length){
-      attn.innerHTML=`<div class="section-label alert"><span class="t">Bottle now</span><span class="c">${attention.length} need${attention.length===1?'s':''} attention</span></div>
-        <div class="attn-row">${attention.map(p=>card(p,true)).join("")}</div>`;
-    } else {
-      attn.innerHTML=`<div class="calm"><span class="k">✓</span> All caught up — nothing under 5 days of cover.</div>`;
+    let onDeck=[];
+    if(shownLows.length<3){
+      const pool=items.filter(i=>!i.low).sort((a,b)=>coverKey(a)-coverKey(b));
+      onDeck=pool.slice(0,3-shownLows.length);
     }
+    const topHTML=shownLows.map(p=>card(p,true,false))
+                  .concat(onDeck.map(p=>card(p,true,true))).join("");
+    const lc=lows.length;
+    attn.innerHTML=`<div class="section-label${lc>0?' alert':''}"><span class="t">Bottle today</span><span class="c">${lc>0?lc+' low':'nothing low'}</span></div>
+      <div class="attn-row">${topHTML||'<div class="calm"><span class="k">✓</span> No SKUs to show.</div>'}</div>`;
 
     // full board
     board.innerHTML=`<div class="section-label"><span class="t">All SKUs</span><span class="c">by blend</span></div>`+
@@ -339,7 +351,7 @@
     msg.className="msg";msg.textContent=liveUrl?"Connecting…":"Cleared — showing sample data.";load();});
   const tick=()=>document.getElementById("clock").textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
   tick();setInterval(tick,1000);
-  load();setInterval(load,REFRESH_MS);  
+  load();setInterval(load,REFRESH_MS);
 </script>
 </body>
 </html>
