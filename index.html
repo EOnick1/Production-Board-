@@ -43,7 +43,18 @@
   .section-label.alert .c{color:var(--alert)}
 
   /* BOTTLE NOW strip */
-  #attention{margin-bottom:clamp(20px,2.8vw,36px)}
+  /* notice + BOTTLE TODAY pin together at the top */
+  #pinned{position:sticky;top:0;z-index:50;background:var(--bg);
+    padding:clamp(8px,1.2vw,14px) 0 clamp(10px,1.4vw,16px);
+    box-shadow:0 10px 20px -14px rgba(28,26,21,.4)}
+  #attention{background:#E6DCC4;border:1.5px solid #D6CDB6;border-radius:14px;
+    padding:clamp(14px,1.8vw,20px) clamp(14px,1.8vw,22px)}
+  /* notice / reminder line under the header */
+  #notice{display:flex;align-items:flex-start;gap:10px;margin-bottom:clamp(16px,2.2vw,22px);
+    background:#FBF3DC;border:1.5px solid #EAD9A6;border-left:5px solid #E9BC54;border-radius:8px;
+    padding:clamp(11px,1.4vw,15px) clamp(14px,1.6vw,18px);
+    font-size:clamp(13px,1.3vw,16px);color:var(--ink);line-height:1.5;font-weight:700}
+  .noticedot{font-size:1.1em;line-height:1.2;flex:none}
   .attn-row{display:flex;flex-wrap:wrap;gap:clamp(12px,1.5vw,18px)}
   .calm{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--line);
     border-left:6px solid var(--ok);border-radius:8px;padding:clamp(16px,2vw,24px);
@@ -136,7 +147,10 @@
   </div>
 </header>
 
-<div id="attention"></div>
+<div id="pinned">
+  <div id="notice" style="display:none"></div>
+  <div id="attention"></div>
+</div>
 <div class="board" id="board"></div>
 
 <div class="config" id="config">
@@ -148,7 +162,7 @@
   <div class="msg" id="msg">Showing sample data — paste a link above to go live.</div>
   <div class="hint">
     Reads the <strong>Today</strong> tab. The top strip is the AUX to-do list: low SKUs whose blend isn't on the main line get filled on AUX at a day's demand.
-    Mark the blend currently on the main line with an <code>x</code> in a <code>Main Now</code> column. Refreshes every 30 seconds.
+    Mark the blend currently on the main line with an <code>x</code> in a <code>Main Now</code> column. Type a reminder in a <code>Note</code> column to show it under the header. Refreshes every 30 seconds.
   </div>
 </div>
 
@@ -185,7 +199,7 @@
   }
 
   const SAMPLE=[
-    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Daily demand":"78","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW"},
+    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Daily demand":"78","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW","Note":"Kaylee out Thurs — Sam covers the AUX line."},
     {SKU:"MS02",Blend:"Mainstay","On-hand":"976","Size":"2 oz","Days cover":"11.3","Daily demand":"86","Suggested run":"834","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
     {SKU:"MSMINI",Blend:"Mainstay","On-hand":"259","Size":"Mini","Days cover":"14.4","Daily demand":"18","Suggested run":"119","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
     {SKU:"EM02",Blend:"Early Morning","On-hand":"0","Size":"2 oz","Days cover":"0","Daily demand":"24","Suggested run":"315","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":"LOW"},
@@ -197,6 +211,7 @@
 
   const board=document.getElementById("board"),
         attn=document.getElementById("attention"),
+        notice=document.getElementById("notice"),
         msg=document.getElementById("msg"),
         dot=document.getElementById("dot"),
         updated=document.getElementById("updated");
@@ -212,14 +227,14 @@
     const w=p.has?Math.max(3,Math.min(100,p.cover/RUNWAY_FULL*100)):100;
     let topRight="", make="";
     if(big){
-      if(onDeck){
-        topRight='<span class="ondeck">On deck</span>';
-      } else {
-        topRight = p.attnLine==="MAIN"
-          ? '<span class="line-pill main">◆ Main line</span>'
-          : '<span class="line-pill aux">▲ Aux machine</span>';
-        const note = p.attnLine==="AUX" ? ` <span class="mnote">(${p.attnNote})</span>` : '';
-        make = `<div class="makeline">Make <b>${(p.attnMake||0).toLocaleString()}</b>${note}</div>`;
+      topRight = onDeck
+        ? '<span class="ondeck">On deck</span>'
+        : (p.attnLine==="MAIN"
+            ? '<span class="line-pill main">◆ Main line</span>'
+            : '<span class="line-pill aux">▲ Aux machine</span>');
+      if(p.attnMake!=null){
+        const note = p.attnNote ? ` <span class="mnote">(${p.attnNote})</span>` : '';
+        make = `<div class="makeline">Bottle <b>${(p.attnMake||0).toLocaleString()}</b> today${note}</div>`;
       }
     } else {
       topRight = p.run>0?`<span class="runtag">Make ${p.run.toLocaleString()}</span>`:'';
@@ -239,6 +254,12 @@
   }
 
   function render(rows){
+    // reminder/notice from a Note (or Message) cell in the Today tab
+    let noteMsg="";
+    for(const r of rows){const m=field(r,["note","notes","message","reminder","board note","announcement"]).trim(); if(m){noteMsg=m;break;}}
+    if(noteMsg){notice.style.display="";notice.innerHTML=`<span class="noticedot">📌</span><span>${esc(noteMsg)}</span>`;}
+    else{notice.style.display="none";notice.innerHTML="";}
+
     rows=rows.filter(r=>field(r,["sku"]).trim()!=="");
     if(!rows.length){attn.innerHTML="";board.innerHTML='<div class="empty">No SKUs found. Check the Today tab is published.</div>';return;}
 
@@ -300,6 +321,12 @@
         onDeck=onDeck.concat(rest.slice(0,need-onDeck.length));
       }
     }
+    // on-deck (not low) cards default to the AUX floor as the bottle quantity
+    onDeck.forEach(p=>{
+      p.attnLine="AUX";
+      p.attnMake=p.auxfloor>0?p.auxfloor:auxFloor(p.size);
+      p.attnNote="min AUX batch";
+    });
     const topHTML=shownLows.map(p=>card(p,true,false))
                   .concat(onDeck.map(p=>card(p,true,true))).join("");
     const lc=lows.length;
