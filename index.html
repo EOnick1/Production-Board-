@@ -29,7 +29,8 @@
   .eyebrow{font-size:clamp(11px,1vw,13px);letter-spacing:.32em;color:var(--ink-dim);text-transform:uppercase;margin-bottom:4px}
   h1{font-family:var(--disp);font-weight:800;letter-spacing:-.01em;font-size:clamp(21px,2.9vw,40px);line-height:.95;text-transform:uppercase}
   .status-line{display:flex;align-items:center;gap:16px;font-size:clamp(11px,1.1vw,14px);color:var(--ink-dim)}
-  .clock{font-family:var(--disp);font-weight:700;font-size:clamp(20px,2.4vw,32px);color:var(--ink)}
+  .lastupd{font-size:clamp(12px,1.25vw,15px);color:var(--ink-dim);letter-spacing:.02em}
+  .lastupd b{color:var(--ink);font-weight:700}
   .live{display:flex;align-items:center;gap:8px;text-transform:uppercase;letter-spacing:.1em}
   .dot{width:9px;height:9px;border-radius:50%;background:var(--ok);box-shadow:0 0 0 0 rgba(74,124,89,.5);animation:pulse 2.4s infinite}
   .dot.err{background:var(--err);animation:none}
@@ -142,8 +143,8 @@
     </div>
   </div>
   <div class="status-line">
-    <span class="clock" id="clock">--:--</span>
-    <span class="live"><span class="dot" id="dot"></span><span id="updated">loading</span></span>
+    <span class="lastupd" id="lastupd"></span>
+    <span class="live"><span class="dot" id="dot"></span><span id="updated" class="livelbl">Live</span></span>
   </div>
 </header>
 
@@ -199,7 +200,7 @@
   }
 
   const SAMPLE=[
-    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Daily demand":"78","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW","Note":"Kaylee out Thurs — Sam covers the AUX line."},
+    {SKU:"MS08",Blend:"Mainstay","On-hand":"243","Size":"8 oz","Days cover":"3.1","Daily demand":"78","Suggested run":"1403","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW","Note":"Kaylee out Thurs — Sam covers the AUX line.","Last Updated":"2026-08-26T12:12:00"},
     {SKU:"MS02",Blend:"Mainstay","On-hand":"976","Size":"2 oz","Days cover":"11.3","Daily demand":"86","Suggested run":"834","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
     {SKU:"MSMINI",Blend:"Mainstay","On-hand":"259","Size":"Mini","Days cover":"14.4","Daily demand":"18","Suggested run":"119","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":""},
     {SKU:"EM02",Blend:"Early Morning","On-hand":"0","Size":"2 oz","Days cover":"0","Daily demand":"24","Suggested run":"315","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":"LOW"},
@@ -212,6 +213,7 @@
   const board=document.getElementById("board"),
         attn=document.getElementById("attention"),
         notice=document.getElementById("notice"),
+        lastupd=document.getElementById("lastupd"),
         msg=document.getElementById("msg"),
         dot=document.getElementById("dot"),
         updated=document.getElementById("updated");
@@ -220,6 +222,17 @@
   const esc=s=>(s??"").toString().replace(/[&<>]/g,m=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[m]));
   const field=(r,names)=>{for(const k in r){if(names.includes(k.trim().toLowerCase()))return (r[k]??"").toString();}return "";};
   const title=s=>s?s.replace(/\b\w/g,c=>c.toUpperCase()):s;
+  // parse a sheet timestamp and format like "Wed, Aug. 26th at 12:12pm"
+  function parseStamp(v){v=(v||"").toString().trim();if(!v)return null;let d=new Date(v);if(!isNaN(d))return d;d=new Date(v.replace(" ","T"));return isNaN(d)?null:d;}
+  function fmtStamp(d){
+    const days=["Sun","Mon","Tue","Wed","Thu","Fri","Sat"];
+    const mons=["Jan.","Feb.","Mar.","Apr.","May","Jun.","Jul.","Aug.","Sep.","Oct.","Nov.","Dec."];
+    const n=d.getDate();
+    const ord=(n%10==1&&n!=11)?"st":(n%10==2&&n!=12)?"nd":(n%10==3&&n!=13)?"rd":"th";
+    let h=d.getHours();const ap=h<12?"am":"pm";h=h%12||12;
+    const mm=String(d.getMinutes()).padStart(2,"0");
+    return `${days[d.getDay()]}, ${mons[d.getMonth()]} ${n}${ord} at ${h}:${mm}${ap}`;
+  }
 
   function card(p,big,onDeck){
     const cool=p.has&&p.cover>60;
@@ -259,6 +272,12 @@
     for(const r of rows){const m=field(r,["note","notes","message","reminder","board note","announcement"]).trim(); if(m){noteMsg=m;break;}}
     if(noteMsg){notice.style.display="";notice.innerHTML=`<span class="noticedot">📌</span><span>${esc(noteMsg)}</span>`;}
     else{notice.style.display="none";notice.innerHTML="";}
+
+    // "last updated" reflects when numbers were entered in the sheet (not the browser clock)
+    let luRaw="";
+    for(const r of rows){const v=field(r,["last updated","updated at","last update","updated on","timestamp"]).trim(); if(v){luRaw=v;break;}}
+    const lu=parseStamp(luRaw);
+    lastupd.innerHTML = lu ? `Last updated at <b>${fmtStamp(lu)}</b>` : (luRaw?`Last updated at <b>${esc(luRaw)}</b>`:"");
 
     rows=rows.filter(r=>field(r,["sku"]).trim()!=="");
     if(!rows.length){attn.innerHTML="";board.innerHTML='<div class="empty">No SKUs found. Check the Today tab is published.</div>';return;}
@@ -373,15 +392,12 @@
     }catch(e){mark(false,"Offline");msg.className="msg err";
       msg.textContent="Couldn't load the sheet. Make sure the Today tab is Published to web as CSV. "+e.message;}
   }
-  function mark(ok,label){dot.className=ok?"dot":"dot err";
-    updated.textContent=(label?label+" · ":"")+new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit",second:"2-digit"});}
+  function mark(ok){dot.className=ok?"dot":"dot err";updated.textContent=ok?"Live":"Offline";}
 
   if(SHEET_CSV_URL) document.getElementById("config").style.display="none";
   document.getElementById("connect").addEventListener("click",()=>{
     liveUrl=document.getElementById("url").value.trim();
     msg.className="msg";msg.textContent=liveUrl?"Connecting…":"Cleared — showing sample data.";load();});
-  const tick=()=>document.getElementById("clock").textContent=new Date().toLocaleTimeString([],{hour:"2-digit",minute:"2-digit"});
-  tick();setInterval(tick,1000);
   load();setInterval(load,REFRESH_MS);
 </script>
 </body>
