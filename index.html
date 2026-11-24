@@ -57,6 +57,19 @@
     font-size:clamp(13px,1.3vw,16px);color:var(--ink);line-height:1.5;font-weight:700}
   .noticedot{font-size:1.1em;line-height:1.2;flex:none}
   .attn-row{display:flex;flex-wrap:wrap;gap:clamp(12px,1.5vw,18px)}
+  /* Wholesale Orders — manual priority band above Bottle Today */
+  #wholesale{margin-bottom:clamp(14px,2vw,20px)}
+  #wholesale .section-label{margin-bottom:11px}
+  #wholesale .section-label .t{font-size:clamp(14px,1.7vw,22px)}
+  #wholesale .section-label .c{color:var(--alert)}
+  .wrow{display:flex;flex-wrap:wrap;gap:clamp(10px,1.3vw,16px)}
+  .wcard{flex:1 1 210px;max-width:340px}
+  .wtag{font-size:clamp(10px,.95vw,12px);font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+    padding:5px 11px;border-radius:999px;background:var(--alert);color:#fff;white-space:nowrap}
+  .wamount{display:flex;align-items:baseline;gap:8px}
+  .wn{font-family:var(--disp);font-weight:800;font-size:clamp(34px,4vw,50px);line-height:.9;color:var(--alert)}
+  .wu{font-size:clamp(11px,1vw,13px);color:var(--ink-dim);text-transform:uppercase;letter-spacing:.1em}
+  .wlabel{font-size:clamp(12px,1.1vw,14px);color:var(--ink);font-weight:700;letter-spacing:.01em}
   .calm{display:flex;align-items:center;gap:12px;background:var(--card);border:1.5px solid var(--line);
     border-left:6px solid var(--ok);border-radius:8px;padding:clamp(16px,2vw,24px);
     font-weight:700;font-size:clamp(14px,1.5vw,19px);color:var(--ink)}
@@ -150,6 +163,7 @@
 
 <div id="pinned">
   <div id="notice" style="display:none"></div>
+  <div id="wholesale" style="display:none"></div>
   <div id="attention"></div>
 </div>
 <div class="board" id="board"></div>
@@ -163,7 +177,7 @@
   <div class="msg" id="msg">Showing sample data — paste a link above to go live.</div>
   <div class="hint">
     Reads the <strong>Today</strong> tab. The top strip is the AUX to-do list: low SKUs whose blend isn't on the main line get filled on AUX at a day's demand.
-    Mark the blend currently on the main line with an <code>x</code> in a <code>Main Now</code> column. Type a reminder in a <code>Note</code> column to show it under the header. Refreshes every 30 seconds.
+    Mark the blend currently on the main line with an <code>x</code> in a <code>Main Now</code> column. Type a reminder in a <code>Note</code> column to show it under the header. Check <code>Prioritize</code> and enter an <code>Amount</code> to push a SKU to the Wholesale Orders band. Refreshes every 30 seconds.
   </div>
 </div>
 
@@ -206,12 +220,13 @@
     {SKU:"EM02",Blend:"Early Morning","On-hand":"0","Size":"2 oz","Days cover":"0","Daily demand":"24","Suggested run":"315","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":"LOW"},
     {SKU:"EM08",Blend:"Early Morning","On-hand":"81","Size":"8 oz","Days cover":"9.6","Daily demand":"8","Suggested run":"95","Suggested line":"AUX","Blend need":"493","Main Now":"","Flag":""},
     {SKU:"MS08 REFILL",Blend:"Mainstay","On-hand":"0","Size":"8 oz refill","Days cover":"0","Daily demand":"12","Suggested run":"626","Suggested line":"MAIN","Blend need":"2982","Main Now":"","Flag":"LOW"},
-    {SKU:"WF08",Blend:"Warm Feelings","On-hand":"1234","Size":"8 oz","Days cover":"89.4","Daily demand":"14","Suggested run":"0","Suggested line":"AUX","Blend need":"125","Main Now":"x","Flag":""},
+    {SKU:"WF08",Blend:"Warm Feelings","On-hand":"1234","Size":"8 oz","Days cover":"89.4","Daily demand":"14","Suggested run":"0","Suggested line":"AUX","Blend need":"125","Main Now":"x","Flag":"","Prioritize":"TRUE","Amount":"500"},
     {SKU:"BL08",Blend:"Baseline","On-hand":"77","Size":"8 oz","Days cover":"11.7","Daily demand":"7","Suggested run":"62","Suggested line":"AUX","Blend need":"243","Main Now":"","Flag":""},
   ];
 
   const board=document.getElementById("board"),
         attn=document.getElementById("attention"),
+        wholesaleEl=document.getElementById("wholesale"),
         notice=document.getElementById("notice"),
         lastupd=document.getElementById("lastupd"),
         msg=document.getElementById("msg"),
@@ -266,6 +281,17 @@
     </div>`;
   }
 
+  function wcard(p){
+    return `<div class="card wcard" style="--c:${p.b.c}">
+      <div class="card-top">
+        <div><div class="sku">${esc(p.sku)}</div><div class="size">${esc(p.size)}</div></div>
+        <span class="wtag">Wholesale</span>
+      </div>
+      <div class="wamount"><span class="wn">${p.pamount.toLocaleString()}</span><span class="wu">bottles</span></div>
+      <div class="wlabel">Bottle for Large Wholesale Order</div>
+    </div>`;
+  }
+
   function render(rows){
     // reminder/notice from a Note (or Message) cell in the Today tab
     let noteMsg="";
@@ -293,10 +319,20 @@
         run:num(field(r,["suggested run","run","make"])),
         daily:num(field(r,["daily demand","daily"])),
         auxfloor:num(field(r,["aux floor","aux min","min aux batch","aux minimum"])),
+        priority:MAINY.has(field(r,["prioritize","priority","wholesale","rush"]).trim().toLowerCase()),
+        pamount:num(field(r,["amount","wholesale amount","order amount","priority amount"])),
         mainNow:MAINY.has(field(r,["main now","on main","main line","current main"]).trim().toLowerCase())};
     });
 
     const blendsOnMain=new Set(items.filter(i=>i.mainNow).map(i=>i.b.code));
+
+    // WHOLESALE ORDERS — manual priority cards (checkbox + amount), outside the cover math
+    const wholesale=items.filter(i=>i.priority && i.pamount>0);
+    if(wholesale.length){
+      wholesaleEl.style.display="";
+      wholesaleEl.innerHTML=`<div class="section-label"><span class="t">Wholesale Orders</span><span class="c">${wholesale.length}</span></div>
+        <div class="wrow">${wholesale.map(wcard).join("")}</div>`;
+    } else { wholesaleEl.style.display="none"; wholesaleEl.innerHTML=""; }
 
     // group by blend, attach blend-level line + need
     const gmap=new Map();
